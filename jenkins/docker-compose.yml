@@ -2,6 +2,7 @@ services:
   my-jenkins:
     image: my-jenkins
     container_name: my-jenkins
+    user: root
     restart: on-failure
     environment:
       - DOCKER_HOST=unix:///var/run/docker.sock
