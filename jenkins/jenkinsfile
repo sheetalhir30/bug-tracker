@@ -7,7 +7,7 @@ pipeline {
                 stage('Unit Tests - Backend') {
                     steps {
                         sh '''
-                            docker run --rm -v "$(pwd)/bugtracker-backend:/src" -w /src snakee/golang-junit:1.21 sh -c "
+                            docker run --rm -v jenkins-workspace:/workspace -w /workspace/bug-tracker/bugtracker-backend snakee/golang-junit:1.21 sh -c "
                                 go install github.com/jstemmer/go-junit-report/v2@latest &&
                                 go test -v ./... 2>&1 | go-junit-report > test-results.xml &&
                                 go test -coverprofile=coverage.out -covermode=atomic ./... &&
@@ -32,8 +32,8 @@ pipeline {
                 stage('Unit Tests - Frontend') {
                     steps {
                         sh '''
-                            docker run --rm -v "$(pwd)/bugtracker-frontend:/src" -w /src node:20-alpine sh -c "
-                                npm ci &&
+                            docker run --rm -v jenkins-workspace:/workspace -w /workspace/bug-tracker/bugtracker-frontend node:20-alpine sh -c "
+                                npm install &&
                                 npm test &&
                                 mkdir -p reports &&
                                 mv coverage reports/
@@ -63,9 +63,9 @@ pipeline {
         stage('API Tests') {
             steps {
                 sh '''
-                    docker run --rm --network host -v "$(pwd)/tests-api:/src" -w /src mcr.microsoft.com/playwright:v1.50.0-jammy sh -c "
+                    docker run --rm --network host -v jenkins-workspace:/workspace -w /workspace/bug-tracker/tests-api mcr.microsoft.com/playwright:v1.50.0-jammy sh -c "
                         npx wait-port http://localhost:8080/api/health -t 30000 &&
-                        npm ci &&
+                        npm install &&
                         npx playwright test
                     "
                 '''
