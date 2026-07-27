@@ -1,0 +1,85 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Execute Unit Tests') {
+            parallel {
+                stage('Unit Tests - Backend') {
+                    steps {
+                        sh '''
+                            WS_NAME=$(basename "$WORKSPACE")
+                            docker run --rm -v jenkins_jenkins-data:/workspace -w /workspace/workspace/$WS_NAME/bugtracker-backend snakee/golang-junit:1.21 sh -c "
+                                go install github.com/jstemmer/go-junit-report/v2@latest &&
+                                go test -v ./... 2>&1 | go-junit-report > test-results.xml &&
+                                go test -coverprofile=coverage.out -covermode=atomic ./... &&
+                                go tool cover -html=coverage.out -o coverage.html &&
+                                mkdir -p reports &&
+                                mv coverage.html reports/
+                            "
+                        '''
+                    }
+                    post {
+                        always {
+                            junit 'bugtracker-backend/test-results.xml'
+                            publishHTML target: [
+                                reportDir: 'bugtracker-backend/reports',
+                                reportFiles: 'coverage.html',
+                                reportName: 'Backend Coverage Report'
+                            ]
+                        }
+                    }
+                }
+
+                stage('Unit Tests - Frontend') {
+                    steps {
+                        sh '''
+                            WS_NAME=$(basename "$WORKSPACE")
+                            docker run --rm -v jenkins_jenkins-data:/workspace -w /workspace/workspace/$WS_NAME/bugtracker-frontend node:20-alpine sh -c "
+                                npm install &&
+                                npm test &&
+                                mkdir -p reports &&
+                                mv coverage reports/
+                            "
+                        '''
+                    }
+                    post {
+                        always {
+                            junit 'bugtracker-frontend/test-results.xml'
+                            publishHTML target: [
+                                reportDir: 'bugtracker-frontend/reports/coverage',
+                                reportFiles: 'index.html',
+                                reportName: 'Frontend Coverage Report'
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Launch Application') {
+            steps {
+                sh 'docker compose up --build -d'
+            }
+        }
+
+        stage('API Tests') {
+            steps {
+                sh '''
+                    WS_NAME=$(basename "$WORKSPACE")
+                    docker run --rm --network host -v jenkins_jenkins-data:/workspace -w /workspace/workspace/$WS_NAME/tests-api mcr.microsoft.com/playwright:v1.50.0-jammy sh -c "
+                        npx wait-port http://localhost:8080/api/health -t 30000 &&
+                        npm install &&
+                        npx playwright test
+                    "
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            sh 'docker compose down || true'
+            cleanWs()
+        }
+    }
+}
