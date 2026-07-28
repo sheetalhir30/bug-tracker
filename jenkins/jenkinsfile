@@ -166,6 +166,35 @@ pipeline {
                 }
             }
         }
+
+        // Performance Tests
+        stage('Performance Tests') {
+            agent {
+                docker {
+                    reuseNode true
+                    args '--network=host -u root --entrypoint=""'
+                }
+            }
+            steps {
+                dir('tests-perf') {
+                    // Run k6 with JUnit output
+                    sh 'k6 run --out junit=results.xml script.js'
+                }
+            }
+            post {
+                always {
+                    // Publish JUnit test results for Jenkins trend graphs
+                    junit 'tests-perf/results.xml'
+
+                    // Publish HTML performance report
+                    publishHTML target: [
+                        reportDir: 'tests-perf',
+                        reportFiles: 'perf-results.html',
+                        reportName: 'Performance Test Results Report'
+                    ]
+                }
+            }
+        }
     }
 
 
