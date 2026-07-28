@@ -171,6 +171,7 @@ pipeline {
         stage('Performance Tests') {
             agent {
                 docker {
+                    image 'grafana/k6:latest'   // ✅ Added required image
                     reuseNode true
                     args '--network=host -u root --entrypoint=""'
                 }
