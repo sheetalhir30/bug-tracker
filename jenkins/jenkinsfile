@@ -178,15 +178,11 @@ pipeline {
             }
             steps {
                 dir('tests-perf') {
-                    // Run k6 with JUnit output
-                    sh 'k6 run --out junit=results.xml script.js'
+                    sh 'k6 run script.js'
                 }
             }
             post {
                 always {
-                    // Publish JUnit test results for Jenkins trend graphs
-                    junit 'tests-perf/results.xml'
-
                     // Publish HTML performance report
                     publishHTML target: [
                         reportDir: 'tests-perf',
