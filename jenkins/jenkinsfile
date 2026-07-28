@@ -6,8 +6,10 @@ pipeline {
     }
 
     stages {
+
         stage('Execute Unit Tests') {
             parallel {
+
                 stage('Unit Tests - Backend') {
                     agent {
                         docker {
@@ -16,10 +18,15 @@ pipeline {
                             args '-u root:root'
                         }
                     }
+
                     steps {
                         dir('bugtracker-backend') {
                             sh 'go install github.com/jstemmer/go-junit-report/v2@latest'
-                            sh 'go test -v ./... 2>&1 | go-junit-report > test-results.xml'
+
+                            sh '''
+                                go test -v ./... 2>&1 | go-junit-report > test-results.xml
+                            '''
+
                             sh '''
                                 go test -coverprofile=coverage.out -covermode=atomic ./...
                                 go tool cover -html=coverage.out -o coverage.html
@@ -28,9 +35,11 @@ pipeline {
                             '''
                         }
                     }
+
                     post {
                         always {
                             junit 'bugtracker-backend/test-results.xml'
+
                             publishHTML target: [
                                 reportDir: 'bugtracker-backend/reports',
                                 reportFiles: 'coverage.html',
@@ -40,6 +49,7 @@ pipeline {
                     }
                 }
 
+
                 stage('Unit Tests - Frontend') {
                     agent {
                         docker {
@@ -47,6 +57,7 @@ pipeline {
                             reuseNode true
                         }
                     }
+
                     steps {
                         dir('bugtracker-frontend') {
                             sh '''
@@ -57,9 +68,11 @@ pipeline {
                             '''
                         }
                     }
+
                     post {
                         always {
                             junit 'bugtracker-frontend/test-results.xml'
+
                             publishHTML target: [
                                 reportDir: 'bugtracker-frontend/reports/coverage',
                                 reportFiles: 'index.html',
@@ -71,11 +84,13 @@ pipeline {
             }
         }
 
+
         stage('Launch Application') {
             steps {
                 sh 'docker compose up --build -d'
             }
         }
+
 
         stage('API Tests') {
             agent {
@@ -85,16 +100,23 @@ pipeline {
                     args '-u 0 --network=host'
                 }
             }
+
             steps {
                 dir('tests-api') {
+
                     sh 'npx wait-port http://localhost:8080/api/health -t 30000'
+
                     sh 'npm ci'
+
                     sh 'npx playwright test'
                 }
             }
+
             post {
                 always {
+
                     junit 'tests-api/test-results/results.xml'
+
                     publishHTML target: [
                         reportDir: 'tests-api/playwright-report',
                         reportFiles: 'index.html',
@@ -104,7 +126,8 @@ pipeline {
             }
         }
 
-        // Added E2E Playwright Tests
+
+        // E2E Playwright Tests
         stage('E2E Tests') {
             agent {
                 docker {
@@ -113,15 +136,28 @@ pipeline {
                     args '-u 0 --network=host'
                 }
             }
+
             steps {
                 dir('tests-e2e') {
+
+                    // Wait until application is ready
+                    sh 'npx wait-port http://localhost:8080/api/health -t 30000'
+
+                    // Install dependencies
                     sh 'npm ci'
+
+                    // Execute Playwright E2E tests
                     sh 'npx playwright test'
                 }
             }
+
             post {
                 always {
+
+                    // Publish JUnit test results
                     junit 'tests-e2e/test-results/results.xml'
+
+                    // Publish Playwright HTML report
                     publishHTML target: [
                         reportDir: 'tests-e2e/playwright-report',
                         reportFiles: 'index.html',
@@ -132,9 +168,14 @@ pipeline {
         }
     }
 
+
     post {
         always {
+
+            // Stop application containers
             sh 'docker compose down || true'
+
+            // Clean Jenkins workspace
             cleanWs()
         }
     }
